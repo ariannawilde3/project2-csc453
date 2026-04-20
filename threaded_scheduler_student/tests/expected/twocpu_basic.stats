@@ -1,0 +1,5 @@
+STATS
+A response 0 turnaround 4 waiting 0
+B response 0 turnaround 2 waiting 0
+C response 1 turnaround 2 waiting 1
+AVG response 0.33 turnaround 2.67 waiting 0.33

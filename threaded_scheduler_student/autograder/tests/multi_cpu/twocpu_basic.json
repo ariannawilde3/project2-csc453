@@ -1,0 +1,9 @@
+{
+  "name": "twocpu_basic",
+  "args": ["--policy", "FCFS", "--cpus", "2", "--input", "tests/workloads/twocpu_basic.txt"],
+  "expected_trace": "tests/expected/twocpu_basic.trace",
+  "expected_stats": "tests/expected/twocpu_basic.stats",
+  "timeout_sec": 2,
+  "repeat": 3,
+  "mode": "exact"
+}

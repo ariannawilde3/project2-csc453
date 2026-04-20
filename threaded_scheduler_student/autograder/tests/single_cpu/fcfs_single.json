@@ -1,0 +1,9 @@
+{
+  "name": "single_cpu_fcfs_single",
+  "args": ["--policy", "FCFS", "--cpus", "1", "--input", "tests/workloads/fcfs_single.txt"],
+  "expected_trace": "tests/expected/fcfs_single.trace",
+  "expected_stats": "tests/expected/fcfs_single.stats",
+  "timeout_sec": 2,
+  "repeat": 1,
+  "mode": "exact"
+}

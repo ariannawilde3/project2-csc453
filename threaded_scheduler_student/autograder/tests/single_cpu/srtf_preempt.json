@@ -1,0 +1,9 @@
+{
+  "name": "single_cpu_srtf_preempt",
+  "args": ["--policy", "SRTF", "--cpus", "1", "--input", "tests/workloads/srtf_preempt.txt"],
+  "expected_trace": "tests/expected/srtf_preempt.trace",
+  "expected_stats": "tests/expected/srtf_preempt.stats",
+  "timeout_sec": 2,
+  "repeat": 1,
+  "mode": "exact"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "single_cpu_sjf_priority",
+  "args": ["--policy", "SJF", "--cpus", "1", "--input", "tests/workloads/sjf_priority.txt"],
+  "expected_trace": "tests/expected/sjf_priority.trace",
+  "expected_stats": "tests/expected/sjf_priority.stats",
+  "timeout_sec": 2,
+  "repeat": 1,
+  "mode": "exact"
+}

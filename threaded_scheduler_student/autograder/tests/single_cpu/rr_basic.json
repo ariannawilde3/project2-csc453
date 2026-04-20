@@ -1,0 +1,9 @@
+{
+  "name": "single_cpu_rr_basic",
+  "args": ["--policy", "RR", "--quantum", "2", "--cpus", "1", "--input", "tests/workloads/rr_basic.txt"],
+  "expected_trace": "tests/expected/rr_basic.trace",
+  "expected_stats": "tests/expected/rr_basic.stats",
+  "timeout_sec": 2,
+  "repeat": 1,
+  "mode": "exact"
+}
