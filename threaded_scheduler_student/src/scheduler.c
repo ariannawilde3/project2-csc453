@@ -6,6 +6,11 @@
 
 #define MAX_JOBS 256
 
+typedef struct {
+    job_t *items[MAX_JOBS];
+    int size;
+} ready_queue_t;
+
 static int read_jobs(const char *path, job_t jobs[]) {
     FILE *filePointer = fopen(path, "r");
     if (filePointer == NULL) {
@@ -52,22 +57,20 @@ static int read_jobs(const char *path, job_t jobs[]) {
     return count;
 }
 
-static job_t *queue[MAX_JOBS];
-static int queueSize = 0;
 
-static void queuePush(job_t *j) {
+static void queuePush(ready_queue_t *q, job_t *j) {
 
-    queue[queueSize] = j;
-    queueSize++;
+    q -> items [q -> size] = j;
+    q -> size++; 
 }
 
-static void queueRemove(int i) {
+static void queueRemove(ready_queue_t *q, int i) {
 
-    for (int k = i; k < queueSize -1; k++) {
-        queue[k] = queue[k + 1];
+    for (int k = i; k < q -> size -1; k++) {
+        q -> items[k] = q -> items[k + 1];
     }
 
-    queueSize--;
+    q -> size--;
 }
 
 static int isBetter (job_t *a, job_t *b) {
@@ -87,15 +90,15 @@ static int isBetter (job_t *a, job_t *b) {
     return strcmp (a -> id, b -> id) < 0;
 }
 
-static int pickBestSJF (void) {
+static int pickBestSJF (ready_queue_t *q) {
 
-    if (queueSize == 0) {
+    if (q -> size == 0) {
         return -1;
     }
 
     int best = 0;
-    for (int i = 1; i < queueSize; i++) {
-        if (isBetter(queue[i], queue[best])) {
+    for (int i = 1; i < q -> size; i++) {
+        if (isBetter(q -> items[i], q -> items[best])) {
             best = i;
         }
     }
@@ -150,7 +153,8 @@ int run_scheduler_single_cpu(const sim_config_t *cfg) {
         stats = stdout;
     }
 
-    queueSize = 0;
+    ready_queue_t rq;
+    rq.size = 0;
 
     job_t *running = NULL;
     int nextArrival = 0;
@@ -162,33 +166,33 @@ int run_scheduler_single_cpu(const sim_config_t *cfg) {
         while (nextArrival < njobs && jobs[nextArrival].arrival_time == tick) {
 
             jobs[nextArrival].ready_enqueue_time = tick;
-            queuePush(&jobs[nextArrival]);
+            queuePush(&rq, &jobs[nextArrival]);
             fprintf(trace, "%d ARRIVE %s\n", tick, jobs[nextArrival].id);
             nextArrival++;
         }
 
-        if (cfg -> policy == POLICY_SRTF && running != NULL && queueSize > 0) {
+        if (cfg -> policy == POLICY_SRTF && running != NULL && rq.size > 0) {
 
-            int best = pickBestSJF();
-            if (isBetter(queue[best], running)) {
+            int best = pickBestSJF(&rq);
+            if (isBetter(rq.items[best], running)) {
                 fprintf(trace, "%d PREEMPT %s\n", tick, running->id);
                 running -> ready_enqueue_time = tick;
-                queuePush(running);
+                queuePush(&rq, running);
                 running = NULL;
             }
         }
 
-        if (running == NULL && queueSize > 0) {
+        if (running == NULL && rq.size > 0) {
 
             int idx;
             if (cfg -> policy == POLICY_SJF || cfg -> policy == POLICY_SRTF) {
-                idx = pickBestSJF();
+                idx = pickBestSJF(&rq);
             } else {
                 idx = 0;
             }
 
-            job_t *j = queue[idx];
-            queueRemove(idx);
+            job_t *j = rq.items[idx];
+            queueRemove(&rq, idx);
 
             j -> total_wait_time += tick - j -> ready_enqueue_time;
 
@@ -214,11 +218,11 @@ int run_scheduler_single_cpu(const sim_config_t *cfg) {
                 running->completion_time = tick;
                 completed++;
                 running = NULL;
-            } else if (cfg -> policy == POLICY_RR && running -> rr_ticks_used >= cfg -> quantum && queueSize > 0) {
+            } else if (cfg -> policy == POLICY_RR && running -> rr_ticks_used >= cfg -> quantum && rq.size > 0) {
 
                 fprintf(trace, "%d PREEMPT %s\n", tick, running -> id);
                 running -> ready_enqueue_time = tick + 1;
-                queuePush(running);
+                queuePush(&rq, running);
                 running = NULL;
             }
         }
