@@ -72,6 +72,7 @@ static int read_jobs(const char *path, job_t jobs[]) {
         jobs[count].priority = priority;
         jobs[count].total_time = cpuTime;
         jobs[count].remaining_time = cpuTime;
+        jobs[count].state = JOB_NEW;
         jobs[count].first_run_time = -1;
         jobs[count].completion_time = -1;
         jobs[count].total_wait_time = 0;
@@ -198,18 +199,20 @@ int run_scheduler_single_cpu(const sim_config_t *cfg) {
     rq.size = 0;
 
     job_t *running = NULL;
-    int nextArrival = 0;
     int completed = 0;
     int tick = 0;
 
     while (completed < njobs) {
         
-        while (nextArrival < njobs && jobs[nextArrival].arrival_time == tick) {
+        for (int i = 0; i < njobs; i++) {
+            if (jobs[i].state != JOB_NEW || jobs[i].arrival_time != tick) {
+                continue;
+            }
 
-            jobs[nextArrival].ready_enqueue_time = tick;
-            queuePush(&rq, &jobs[nextArrival]);
-            fprintf(trace, "%d ARRIVE %s\n", tick, jobs[nextArrival].id);
-            nextArrival++;
+            jobs[i].state = JOB_READY;
+            jobs[i].ready_enqueue_time = tick;
+            queuePush(&rq, &jobs[i]);
+            fprintf(trace, "%d ARRIVE %s\n", tick, jobs[i].id);
         }
 
         if (cfg -> policy == POLICY_SRTF && running != NULL && rq.size > 0) {
@@ -217,6 +220,7 @@ int run_scheduler_single_cpu(const sim_config_t *cfg) {
             int best = pickBestSJF(&rq);
             if (isBetter(rq.items[best], running)) {
                 fprintf(trace, "%d PREEMPT %s\n", tick, running->id);
+                running -> state = JOB_READY;
                 running -> ready_enqueue_time = tick;
                 queuePush(&rq, running);
                 running = NULL;
@@ -237,6 +241,7 @@ int run_scheduler_single_cpu(const sim_config_t *cfg) {
 
             j -> total_wait_time += tick - j -> ready_enqueue_time;
 
+            j -> state = JOB_RUNNING;
             j -> rr_ticks_used = 0;
 
             if (j -> started == 0) {
@@ -256,12 +261,14 @@ int run_scheduler_single_cpu(const sim_config_t *cfg) {
             if (running -> remaining_time == 0) {
 
                 fprintf(trace, "%d COMPLETE %s\n", tick, running->id);
+                running -> state = JOB_DONE;
                 running->completion_time = tick;
                 completed++;
                 running = NULL;
             } else if (cfg -> policy == POLICY_RR && running -> rr_ticks_used >= cfg -> quantum && rq.size > 0) {
 
                 fprintf(trace, "%d PREEMPT %s\n", tick, running -> id);
+                running -> state = JOB_READY;
                 running -> ready_enqueue_time = tick + 1;
                 queuePush(&rq, running);
                 running = NULL;
@@ -329,16 +336,18 @@ static int pick_next_job(const sim_config_t *cfg, ready_queue_t *rq) {
 }
 
 static void admit_arrivals(multi_state_t *state) {
-    while (state -> next_arrival < state -> njobs &&
-           state -> jobs[state -> next_arrival].arrival_time == state -> tick) {
-        job_t *j = &state -> jobs[state -> next_arrival];
+    for (int i = 0; i < state -> njobs; i++) {
+        job_t *j = &state -> jobs[i];
 
+        if (j -> state != JOB_NEW || j -> arrival_time != state -> tick) {
+            continue;
+        }
+
+        j -> state = JOB_READY;
         j -> ready_enqueue_time = state -> tick;
         queuePush(&state -> rq, j);
 
         fprintf(state -> trace, "%d ARRIVE %s\n", state -> tick, j -> id);
-        
-        state -> next_arrival++;
     }
 }
 
@@ -353,6 +362,7 @@ static void dispatch_idle_cpus(multi_state_t *state) {
             queueRemove(&state -> rq, idx);
 
             j -> total_wait_time += state -> tick - j -> ready_enqueue_time;
+            j -> state = JOB_RUNNING;
             j -> rr_ticks_used = 0;
 
             if (!j -> started) {
@@ -386,6 +396,7 @@ static void preempt_srtf_jobs(multi_state_t *state) {
                     state -> tick, cpu, running -> id);
 
             running -> ready_enqueue_time = state -> tick;
+            running -> state = JOB_READY;
             queuePush(&state -> rq, running);
             state -> cpu_jobs[cpu] = NULL;
         }
@@ -415,6 +426,7 @@ static void process_cpu_results(multi_state_t *state) {
                     state -> tick, cpu, j -> id);
 
             j -> completion_time = state -> tick;
+            j -> state = JOB_DONE;
             state -> cpu_jobs[cpu] = NULL;
             state -> completed++;
         } else if (cfg -> policy == POLICY_RR &&
@@ -424,6 +436,7 @@ static void process_cpu_results(multi_state_t *state) {
                     state -> tick, cpu, j -> id);
 
             j -> ready_enqueue_time = state -> tick + 1;
+            j -> state = JOB_READY;
             queuePush(&state -> rq, j);
             state -> cpu_jobs[cpu] = NULL;
         }
